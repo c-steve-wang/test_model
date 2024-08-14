@@ -7,8 +7,9 @@ import torch
 
 class CasualtyExtractor:
     def __init__(self, model_name, tokenizer_name):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-        self.model = AutoModelForCausalLM.from_pretrained(model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(model_name).to(self.device)
 
     def probe_info(self, text):
         prompt1 = """Extract casualty statistics from tweets.
@@ -48,10 +49,16 @@ class CasualtyExtractor:
         prompt2 = """[Query]: |Deaths|Injuries|City|Country|Earthquake|
 [Key]:"""
 
+        
         full_prompt = prompt1 + " " + text + "\n" + prompt2
-        inputs = self.tokenizer(full_prompt, return_tensors="pt")
-        outputs = self.model.generate(inputs['input_ids'], max_length=50)
-        generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        iids = self.tokenizer(full_prompt, return_tensors="pt").input_ids.to(device)
+        print("tokenizing finished")
+        
+        # Increase max_new_tokens or max_length to ensure sufficient generation length
+        generated_ids = self.model.generate(iids, do_sample=False, temperature=1.0, max_new_tokens=25, return_dict_in_generate=True, output_scores=True)
+        print("generation finished")
+        
+        generated_text = self.gen_tokenizer.decode(generated_ids.sequences[0])
         
         # Extract the relevant part after the prompt
         return generated_text.split(prompt2)[-1].strip()
